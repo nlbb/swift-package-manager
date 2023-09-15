@@ -1,0 +1,58 @@
+# This workflow will create a release on GitHub with
+# the specified version number.
+name: Create Release
+run-name: Manually Create Release for ${{ inputs.version }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release'
+        required: true
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-13
+    steps:
+      - name: Checkout code from repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+          fetch-tags: true
+          ref: swift-${{ inputs.version }}-RELEASE
+
+      - name: Create XCFramework
+        uses: unsignedapps/swift-create-xcframework@v2
+        with:
+          target: SwiftPMDataModel
+          platforms: macOS
+          configuration: release
+
+      - name: Compute checksum
+        id: checksum
+        run: |
+          checksum=$(swift package compute-checksum SwiftPMDataModel.xcframework.zip)
+          echo "checksum=$checksum" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: SWIFT-${{ inputs.version }}-RELEASE
+          tag_name: ${{ inputs.version }}
+          body: |
+            # ${{ inputs.version }}
+
+            This is the release for SWIFT-${{ inputs.version }}-RELEASE
+
+            Checksum: `${{ steps.checksum.outputs.checksum }}`
+          files: |
+            ./SwiftPMDataModel.xcframework.zip
